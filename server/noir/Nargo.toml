@@ -1,6 +1,8 @@
 [package]
-name = "zk-Bank"
+name = "zkBank"
 type = "bin"
-authors = [""]
+authors = ["Ori Pomerantz"]
 
 [dependencies]
+ecrecover = { git = "https://github.com/colinnielsen/ecrecover-noir", tag = "v1.0.0" }
+keccak256 = { git = "https://github.com/noir-lang/keccak256", tag = "v0.1.1" }
