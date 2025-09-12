@@ -1,0 +1,6 @@
+[package]
+name = "zk-Bank"
+type = "bin"
+authors = [""]
+
+[dependencies]
