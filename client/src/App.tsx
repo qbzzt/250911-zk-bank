@@ -1,4 +1,5 @@
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
+import Transfer from './Transfer.tsx'
 
 function App() {
   const account = useAccount()
@@ -39,6 +40,7 @@ function App() {
         <div>{status}</div>
         <div>{error?.message}</div>
       </div>
+      <Transfer account={account} />
     </>
   )
 }

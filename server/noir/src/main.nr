@@ -5,9 +5,9 @@ use keccak256::keccak256;
 
 global ACCOUNT_NUMBER: u32 = 5;
 global FLAT_ACCOUNT_FIELDS : u32 = 2;
-global MESSAGE_LENGTH : u32 = 60;
-global ASCII_MESSAGE_LENGTH : [u8; 2] = [0x36, 0x30];
-global HASH_BUFFER_SIZE : u32 = 26+2+MESSAGE_LENGTH; 
+global MESSAGE_LENGTH : u32 = 100;
+global ASCII_MESSAGE_LENGTH : [u8; 3] = [0x31, 0x30, 0x30];
+global HASH_BUFFER_SIZE : u32 = 26+3+MESSAGE_LENGTH; 
 
 struct Account {
     balance: u128,
