@@ -61,8 +61,9 @@ nonce=0
     let proverToml = `
 message="${message}"
 
-pubKey=${hexToArray(pubKey.slice(4))}
-signatureParam=${hexToArray(signature.slice(2,-2))}
+pubKeyX=${hexToArray(pubKey.slice(4,4+2*32))}
+pubKeyY=${hexToArray(pubKey.slice(4+2*32))}
+signature=${hexToArray(signature.slice(2,-2))}
 
 ${accounts.map(accountInProverToml).reduce((a,b) => a+b, "")}
 `

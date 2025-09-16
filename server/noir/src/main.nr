@@ -153,7 +153,6 @@ fn readTransferTxn(message: str<MESSAGE_LENGTH>) -> TransferTxn
     let mut txn: TransferTxn = TransferTxn { from: 0, to: 0, amount:0, nonce:0 };
     let messageBytes = message.as_bytes();
 
-    txn.from = 0x90F79bf6EB2c4f870365E785982E1f101E93b906; // For now
     txn.to = readAddress(messageBytes);
     let (amount, nonce) = readAmountAndNonce(messageBytes);
     txn.amount = amount;
@@ -162,36 +161,6 @@ fn readTransferTxn(message: str<MESSAGE_LENGTH>) -> TransferTxn
     txn
 }
 
-
-fn fill_u8_times_32_from_u128s(x0: u128, x1: u128) -> [u8; 32] {
-    let mut out: [u8; 32] = [0; 32];
-    for i in 0..16 {
-        out[(15-i) as u32] = ((x0 >> (8 * i)) & 0xFF) as u8;
-    }
-    for i in 0..16 {
-        out[(31-i) as u32] = ((x1 >> (8 * i)) & 0xFF) as u8;
-    }    
-    out
-}
-
-
-fn fill_u8_times_64_from_u128s(x: [u128; 4]) -> [u8; 64] {
-    let mut out: [u8; 64] = [0; 64];
-
-    for i in 0..16 {
-        out[(15-i) as u32] = ((x[0] >> (8 * i)) & 0xFF) as u8;
-    }
-    for i in 0..16 {
-        out[(31-i) as u32] = ((x[1] >> (8 * i)) & 0xFF) as u8;
-    }
-    for i in 0..16 {
-        out[(47-i) as u32] = ((x[2] >> (8 * i)) & 0xFF) as u8;
-    }
-    for i in 0..16 {
-        out[(63-i) as u32] = ((x[3] >> (8 * i)) & 0xFF) as u8;
-    }        
-    out
-}
 
 
 // The equivalent to Viem's hashMessage
@@ -231,53 +200,82 @@ fn hashMessage(message: str<MESSAGE_LENGTH>) -> [u8;32] {
     for i in 0..26 {
         buffer[i] = prefix_bytes[i];
     }
-    for i in 0..2 {
-        buffer[i+26] = ASCII_MESSAGE_LENGTH[i];
-    }
 
     let messageBytes : [u8; MESSAGE_LENGTH] = message.as_bytes();
 
-    for i in 0..MESSAGE_LENGTH {
-        buffer[i+28] = messageBytes[i];
+    if MESSAGE_LENGTH <= 9 {
+        for i in 0..1 {
+            buffer[i+26] = ASCII_MESSAGE_LENGTH[i];
+        }
+
+        for i in 0..MESSAGE_LENGTH {
+            buffer[i+26+1] = messageBytes[i];
+        }
     }
+
+    if MESSAGE_LENGTH >= 10 & MESSAGE_LENGTH <= 99 {
+        for i in 0..2 {
+            buffer[i+26] = ASCII_MESSAGE_LENGTH[i];
+        }
+
+        for i in 0..MESSAGE_LENGTH {
+            buffer[i+26+2] = messageBytes[i];
+        }
+    }
+
+    if MESSAGE_LENGTH >= 100 {
+        for i in 0..3 {
+            buffer[i+26] = ASCII_MESSAGE_LENGTH[i];
+        }
+
+        for i in 0..MESSAGE_LENGTH {
+            buffer[i+26+3] = messageBytes[i];
+        }
+    }
+
+    assert(MESSAGE_LENGTH < 1000, "Messages whose length is over three digits are not supported");
 
     keccak256::keccak256(buffer, HASH_BUFFER_SIZE)
 }
 
-fn signatureToAddress(
+fn signatureToAddressAndHash(
         message: str<MESSAGE_LENGTH>, 
-        pubKey: [u128; 4],
-        signatureParam: [u128; 4]
-    ) -> Field
+        pubKeyX: [u8; 32],
+        pubKeyY: [u8; 32],
+        signature: [u8; 64]
+    ) -> (Field, [u8; 32])
 {
-    let pub_x_array = fill_u8_times_32_from_u128s(pubKey[0], pubKey[1]);
-    let pub_y_array = fill_u8_times_32_from_u128s(pubKey[2], pubKey[3]);
-    let signature = fill_u8_times_64_from_u128s(signatureParam);
-
     let hash = hashMessage(message);
 
-    ecrecover::ecrecover(pub_x_array, pub_y_array, signature, hash)
+    (
+        ecrecover::ecrecover(pubKeyX, pubKeyY, signature, hash), 
+        hash
+    )
 }
 
 
 fn main(
         accounts: [Account; ACCOUNT_NUMBER], 
         message: str<MESSAGE_LENGTH>, 
-        pubKey: [u128; 4],
-        signatureParam: [u128; 4],
+        pubKeyX: [u8; 32],
+        pubKeyY: [u8; 32],        
+        signature: [u8; 64],
     ) -> pub (
         [Account; ACCOUNT_NUMBER], // New accounts array
         Field,  // Hash of new accounts array
         Field,  // Hash of old accounts array
-        TransferTxn,
+        [u8; 32], // Transaction hash (hash of the message)
     )
 {
     let mut txn = readTransferTxn(message);
 
-    txn.from = signatureToAddress(
+    let (fromAddress, txnHash) = signatureToAddressAndHash(
         message,
-        pubKey,
-        signatureParam);
+        pubKeyX,
+        pubKeyY,
+        signature);
+
+    txn.from = fromAddress;
 
     let newAccounts = apply_transfer_txn(accounts, txn);
 
@@ -285,7 +283,7 @@ fn main(
         newAccounts, 
         hash_accounts(newAccounts),
         hash_accounts(accounts),
-        txn,
+        txnHash
     )
 }
 
