@@ -261,7 +261,6 @@ fn main(
         pubKeyY: [u8; 32],        
         signature: [u8; 64],
     ) -> pub (
-        [Account; ACCOUNT_NUMBER], // New accounts array
         Field,  // Hash of new accounts array
         Field,  // Hash of old accounts array
         [u8; 32], // Transaction hash (hash of the message)
@@ -280,7 +279,6 @@ fn main(
     let newAccounts = apply_transfer_txn(accounts, txn);
 
     (
-        newAccounts, 
         hash_accounts(newAccounts),
         hash_accounts(accounts),
         txnHash
