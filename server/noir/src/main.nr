@@ -63,8 +63,7 @@ fn find_account(accounts: [Account; ACCOUNT_NUMBER], address: Field) -> u32 {
         }
     }
 
-    // Or else account not found, and the transaction is impossible to fulfill
-    assert (account < ACCOUNT_NUMBER);
+    assert (account < ACCOUNT_NUMBER, f"{address} does not have an account");
 
     account
 }
@@ -74,11 +73,14 @@ fn apply_transfer_txn(accounts: [Account; ACCOUNT_NUMBER], txn: TransferTxn) -> 
     let from = find_account(accounts, txn.from);
     let to = find_account(accounts, txn.to);
 
-    // Or else there isn't enough balance to transfer
-    assert (accounts[from].balance >= txn.amount);
+    let (txnFrom, txnAmount, txnNonce, accountNonce) = 
+        (txn.from, txn.amount, txn.nonce, accounts[from].nonce);
 
-    // Or else this might be a replay attack
-    assert (accounts[from].nonce == txn.nonce);    
+    assert (accounts[from].balance >= txn.amount, 
+        f"{txnFrom} does not have {txnAmount} finney");
+
+    assert (accounts[from].nonce == txn.nonce,
+        f"Transaction has nonce {txnNonce}, but the account is expected to use {accountNonce}");    
 
     let mut newAccounts = accounts;
 
@@ -261,8 +263,8 @@ fn main(
         pubKeyY: [u8; 32],        
         signature: [u8; 64],
     ) -> pub (
-        Field,  // Hash of new accounts array
         Field,  // Hash of old accounts array
+        Field,  // Hash of new accounts array
         [u8; 32], // Transaction hash (hash of the message)
     )
 {
@@ -279,8 +281,8 @@ fn main(
     let newAccounts = apply_transfer_txn(accounts, txn);
 
     (
+        hash_accounts(accounts),        
         hash_accounts(newAccounts),
-        hash_accounts(accounts),
         txnHash
     )
 }
