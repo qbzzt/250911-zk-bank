@@ -40,7 +40,7 @@ nonce=0
   const [ hash, setHash ] = useState("") 
   const [ pubKey, setPubKey ] = useState("")
   const [ proverToml, setProverToml ] = useState("")
-  const nonce = 0
+  const nonce = 1
 
   const message = `send ${toAccount} ${ethAmount*1000} finney (milliEth) ${nonce}`.padEnd(100, " ")
 
