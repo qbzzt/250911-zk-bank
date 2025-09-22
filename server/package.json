@@ -11,6 +11,8 @@
   "license": "ISC",
   "packageManager": "pnpm@10.11.1",
   "dependencies": {
-    "@noir-lang/noir_js": "1.0.0-beta.11"
+    "@noir-lang/noir_js": "1.0.0-beta.11",
+    "express": "^5.1.0",
+    "viem": "^2.37.7"
   }
 }

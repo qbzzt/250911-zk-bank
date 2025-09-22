@@ -1,13 +1,97 @@
 import fs from 'fs/promises'
 import { Noir } from '@noir-lang/noir_js'
+import express from 'express'
+import {
+    hashMessage,
+    recoverAddress,
+    recoverPublicKey,
+    hexToBytes,
+} from 'viem'
 
 const circuit = JSON.parse(await fs.readFile("./noir/target/zkBank.json"))
 const noir = new Noir(circuit)
+const port = 3000
+
+
+
+// We only provide account information in return to a signed request
+const accountInformation = async signature => {
+    const fromAddress = await recoverAddress({
+        hash: hashMessage("Get account data"),
+        signature
+    })
+
+    for(var i=0; i<Accounts.length; i++) {
+        if (Accounts[i].address == fromAddress) 
+            return ({
+                nonce: Accounts[i].nonce,
+                balance: Accounts[i].balance
+            })
+    }
+
+    // If we got here, the account is not found
+    throw Error(`Address ${fromAddress} has no account`)
+}
+
+
+const processMessage = async (message, signature) => {
+    // Get the from address and verify the signature
+    const hash = hashMessage(message)
+    const fromAddress = await recoverAddress({
+        hash, 
+        signature
+    })
+
+    // Parse the message
+    const toAddress = message.slice(5,47)
+    const [_, amount, nonce] = message.slice(47).split(/\D+/).map(x => Number(x))
+
+    // Get the public key
+    const pubKey = await recoverPublicKey({
+        hash,
+        signature
+    })
+    
+    const pubKeyX = pubKey.slice(4,-64).match(/.{2}/g).map(x => `0x${x}`)
+    const pubKeyY = pubKey.slice(-64).match(/.{2}/g).map(x => `0x${x}`)
+
+    // Call the Noir code. If it is successful then the transaction is valid
+    let noirResult
+    try {
+        noirResult = await noir.execute({
+            message,
+            signature: signature.slice(2,-2).match(/.{2}/g).map(x => `0x${x}`),
+            pubKeyX,
+            pubKeyY,
+            accounts: Accounts
+        })
+    } catch (err) {
+        console.log(`Noir error: ${err}`)
+        throw Error("Invalid transaction, not processed")
+    }
+
+    let fromAccountNumber, toAccountNumber
+
+    for(var i=0; i<Accounts.length; i++) {
+        if (Accounts[i].address == fromAddress)
+            fromAccountNumber = i
+        if (Accounts[i].address == toAddress)
+            toAccountNumber = i            
+    }
+
+    Accounts[fromAccountNumber].nonce++
+    Accounts[fromAccountNumber].balance -= amount
+    Accounts[toAccountNumber].balance += amount
+
+    console.log(`Txn ${message.trimEnd()} processed`)
+    console.log("New state:")
+    Accounts.map(x => console.log(`${x.address} has ${x.balance} (${x.nonce})`))
+}
 
 let Accounts = [
     {
         address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        balance: 10000,
+        balance: 5000,
         nonce: 0,
     },
     {
@@ -32,28 +116,64 @@ let Accounts = [
     },
 ]
 
-const results0 = await noir.execute({
-    message: "send 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 500 finney (milliEth) 0                             ",
-    pubKeyX: ["0x83","0x18","0x53","0x5b","0x54","0x10","0x5d","0x4a","0x7a","0xae","0x60","0xc0","0x8f","0xc4","0x5f","0x96","0x87","0x18","0x1b","0x4f","0xdf","0xc6","0x25","0xbd","0x1a","0x75","0x3f","0xa7","0x39","0x7f","0xed","0x75"],
-    pubKeyY: ["0x35","0x47","0xf1","0x1c","0xa8","0x69","0x66","0x46","0xf2","0xf3","0xac","0xb0","0x8e","0x31","0x01","0x6a","0xfa","0xc2","0x3e","0x63","0x0c","0x5d","0x11","0xf5","0x9f","0x61","0xfe","0xf5","0x7b","0x0d","0x2a","0xa5"],
-    signature: ["0xb1","0x93","0xb9","0xbf","0x52","0x1d","0x37","0x35","0xcc","0x60","0xe3","0xe9","0xb5","0xca","0xc4","0xe5","0x5f","0xcc","0x30","0xd0","0x7f","0x71","0x53","0xd3","0xbc","0x53","0x72","0xed","0xc9","0xdf","0xf0","0xf1","0x5e","0xf8","0x6c","0xa2","0x6c","0x4b","0x8c","0xb9","0x89","0xba","0x1e","0xc4","0x4f","0xc7","0xb1","0x55","0x62","0x6f","0xa2","0x72","0x5d","0x6b","0x72","0x61","0xb6","0x91","0x68","0x3c","0xf9","0x72","0x3e","0x0d"],
-    accounts: Accounts 
+const message = "send 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 500 finney (milliEth) 0                             "
+const signature = "0xb193b9bf521d3735cc60e3e9b5cac4e55fcc30d07f7153d3bc5372edc9dff0f15ef86ca26c4b8cb989ba1ec44fc7b155626fa2725d6b7261b691683cf9723e0d1b"
+
+
+// processMessage(message, signature)
+
+
+const app = express()
+app.use(express.json())
+
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*")
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+  res.setHeader("Access-Control-Allow-Headers", "*")
+
+  // Handle preflight requests
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204) // No Content
+  }
+
+  next()
 })
 
-console.log(results0.returnValue)
-
-Accounts[0].nonce = 1
-Accounts[0].balance -= 500
-Accounts[1].balance += 500
 
 
+app.post('/transfer', async (req, res) => {
+    try {
+        await processMessage(req.body.message, req.body.signature)
+    } catch (err) {
+        res.status(499).json({
+            error: err.message
+        })        
+        console.log(err)
+        return
+    }
 
-const results1 = await noir.execute({
-    message: "send 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 500 finney (milliEth) 1".padEnd(100, " "),
-    pubKeyX: ["0x83","0x18","0x53","0x5b","0x54","0x10","0x5d","0x4a","0x7a","0xae","0x60","0xc0","0x8f","0xc4","0x5f","0x96","0x87","0x18","0x1b","0x4f","0xdf","0xc6","0x25","0xbd","0x1a","0x75","0x3f","0xa7","0x39","0x7f","0xed","0x75"],
-    pubKeyY: ["0x35","0x47","0xf1","0x1c","0xa8","0x69","0x66","0x46","0xf2","0xf3","0xac","0xb0","0x8e","0x31","0x01","0x6a","0xfa","0xc2","0x3e","0x63","0x0c","0x5d","0x11","0xf5","0x9f","0x61","0xfe","0xf5","0x7b","0x0d","0x2a","0xa5"],
-    signature: ["0x41","0x92","0x1f","0x17","0xb6","0x66","0x09","0x9a","0x8f","0xe6","0xb8","0x7b","0x54","0xc8","0x8e","0xdc","0xc4","0x98","0x1b","0x7c","0xa7","0xd5","0xba","0x2e","0x85","0xa3","0x4f","0xa3","0xb6","0x6c","0x3f","0xc0","0x6c","0xd6","0x99","0xa9","0xc0","0xb7","0xaa","0xf8","0x99","0xf5","0x25","0x1d","0x59","0x8f","0x9b","0x0e","0x3b","0x48","0x1b","0x78","0x6d","0x06","0x8a","0x26","0x66","0x0d","0x04","0x88","0x00","0x6f","0x31","0xae"],
-    accounts: Accounts 
+    res.send("OK\n")
 })
 
-console.log(results1.returnValue)
+app.post('/data', async (req, res) => {
+    let accountData
+    try {
+        accountData = await accountInformation(req.body.signature)
+    } catch (err) {
+        res.status(499).json({
+            error: err.message
+        })        
+        console.log(err)
+        return        
+    }
+
+    res.send(accountData)
+})
+
+app.get('/', (req, res) => {
+  res.send('Hello World!')
+})
+
+app.listen(port, () => {
+  console.log(`Listening on port ${port}`)
+})
