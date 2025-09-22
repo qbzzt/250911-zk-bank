@@ -36,7 +36,7 @@ export default attrs =>  {
   const getAccountData = async () => {
     const signature = await wallet.signMessage({
         account: fromAccount,
-        message: "Get account data",
+        message: "Get account data " + Math.floor((new Date().getTime())/60000)
     })
 
     const httpResponse = await fetch("http://localhost:3000/data", {

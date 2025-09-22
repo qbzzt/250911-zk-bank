@@ -17,7 +17,7 @@ const port = 3000
 // We only provide account information in return to a signed request
 const accountInformation = async signature => {
     const fromAddress = await recoverAddress({
-        hash: hashMessage("Get account data"),
+        hash: hashMessage("Get account data " + Math.floor((new Date().getTime())/60000)),
         signature
     })
 
