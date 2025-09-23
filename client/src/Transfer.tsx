@@ -153,18 +153,6 @@ export default attrs =>  {
             <p/>
 
             <button onClick={sign}>Transfer</button>
-
-            <h3>Signature values</h3>
-            <table border="true">
-                <tr>
-                    <th>Signature</th>
-                    <td>{signature}</td>
-                </tr>
-                <tr>
-                    <th>Message hash</th>
-                    <td>{hash}</td>
-                </tr>
-            </table>
         </>
         )}
     </>
