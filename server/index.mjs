@@ -70,6 +70,8 @@ const processMessage = async (message, signature) => {
         throw Error("Invalid transaction, not processed")
     }
 
+    console.log(noirResult.witness)
+
     let fromAccountNumber, toAccountNumber
 
     for(var i=0; i<Accounts.length; i++) {
@@ -120,7 +122,7 @@ const message = "send 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 500 finney (mil
 const signature = "0xb193b9bf521d3735cc60e3e9b5cac4e55fcc30d07f7153d3bc5372edc9dff0f15ef86ca26c4b8cb989ba1ec44fc7b155626fa2725d6b7261b691683cf9723e0d1b"
 
 
-// processMessage(message, signature)
+processMessage(message, signature)
 
 
 const app = express()
