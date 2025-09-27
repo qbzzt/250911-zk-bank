@@ -18,7 +18,7 @@ contract ZkBankScript is Script {
 
         bytes32[] memory keys = new bytes32[](2);
         
-        bool result = verifier.verify(
+        verifier.verify(
             hex"beefbabe",
             keys
         );

@@ -245,13 +245,21 @@ fn signatureToAddressAndHash(
         pubKeyX: [u8; 32],
         pubKeyY: [u8; 32],
         signature: [u8; 64]
-    ) -> (Field, [u8; 32])
+    ) -> (Field, Field, Field)   // address, first 16 bytes of hash, last 16 bytes of hash
 {
     let hash = hashMessage(message);
 
+    let mut (hash1, hash2) = (0,0);
+
+    for i in 0..16 {
+        hash1 = hash1*256 + hash[i].into();
+        hash2 = hash2*256 + hash[i+16].into();
+    }
+
     (
         ecrecover::ecrecover(pubKeyX, pubKeyY, signature, hash), 
-        hash
+        hash1,
+        hash2
     )
 }
 
@@ -265,12 +273,13 @@ fn main(
     ) -> pub (
         Field,  // Hash of old accounts array
         Field,  // Hash of new accounts array
-        [u8; 32], // Transaction hash (hash of the message)
+        Field,  // First 16 bytes of message hash
+        Field,  // Last 16 bytes of message hash
     )
 {
     let mut txn = readTransferTxn(message);
 
-    let (fromAddress, txnHash) = signatureToAddressAndHash(
+    let (fromAddress, hash1, hash2) = signatureToAddressAndHash(
         message,
         pubKeyX,
         pubKeyY,
@@ -283,7 +292,8 @@ fn main(
     (
         hash_accounts(accounts),        
         hash_accounts(newAccounts),
-        txnHash
+        hash1,
+        hash2
     )
 }
 
