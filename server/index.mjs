@@ -91,37 +91,40 @@ const processMessage = async (message, signature) => {
 let Accounts = [
     {
         address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        balance: 5000,
+        balance: 100000,
         nonce: 0,
     },
     {
         address: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-        balance: 10000,
+        balance: 100000,
         nonce: 0,
     },        
     {
         address: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-        balance: 10000,
+        balance: 100000,
         nonce: 0,
     },
     {
         address: "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
-        balance: 10000,
+        balance: 100000,
         nonce: 0,
     },
     {
         address: "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
-        balance: 10000,
+        balance: 100000,
         nonce: 0,
     },
 ]
 
+
+/* Uncomment here if it's useful for debugging
+
 const message = "send 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 500 finney (milliEth) 0                             "
 const signature = "0xb193b9bf521d3735cc60e3e9b5cac4e55fcc30d07f7153d3bc5372edc9dff0f15ef86ca26c4b8cb989ba1ec44fc7b155626fa2725d6b7261b691683cf9723e0d1b"
 
+processMessage(message, signature)
 
-// processMessage(message, signature)
-
+*/
 
 const app = express()
 app.use(express.json())
