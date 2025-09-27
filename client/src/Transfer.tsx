@@ -5,9 +5,7 @@ import {
     custom,
     hashMessage,
     recoverPublicKey,
-    verifyMessage
 } from 'viem'
-import { mainnet } from 'viem/chains'
 
 export default attrs =>  {
 
@@ -27,6 +25,9 @@ nonce=0
     "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
     "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
   ]
+
+  if (window.ethereum == undefined)
+    alert("You need an Ethereum wallet to do anything with this system")
 
   const account = useAccount()
   const wallet = createWalletClient({
