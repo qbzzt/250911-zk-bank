@@ -1,17 +1,88 @@
 import fs from 'fs/promises'
 import { Noir } from '@noir-lang/noir_js'
+// import { UltraHonkBackend } from "@aztec/bb.js"
+import { exec } from 'child_process'
+import util from 'util'
+
 import express from 'express'
 import {
     hashMessage,
     recoverAddress,
     recoverPublicKey,
-    hexToBytes,
+    createPublicClient,
+    getContract,
+    http
 } from 'viem'
+import { anvil } from 'viem/chains'
+
+const execPromise = util.promisify(exec)
 
 const circuit = JSON.parse(await fs.readFile("./noir/target/zkBank.json"))
 const noir = new Noir(circuit)
+
+// I couldn't get this API to work, so I'm using the command line bb instead
+// const honk = new UltraHonkBackend(circuit.bytecode, { threads: 1 })
+
 const port = 3000
 
+const verifierAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+const verifierABI = [
+    {
+        "type": "function",
+        "name": "verify",
+        "inputs": [
+        {
+            "name": "proof",
+            "type": "bytes",
+            "internalType": "bytes"
+        },
+        {
+            "name": "publicInputs",
+            "type": "bytes32[]",
+            "internalType": "bytes32[]"
+        }
+        ],
+        "outputs": [
+        {
+            "name": "",
+            "type": "bool",
+            "internalType": "bool"
+        }
+        ],
+        "stateMutability": "view"
+    },
+  {
+    "type": "error",
+    "name": "ProofLengthWrong",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "PublicInputsLengthWrong",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ShpleminiFailed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SumcheckFailed",
+    "inputs": []
+  }    
+]
+
+const publicClient = createPublicClient({ 
+    chain: anvil, 
+    transport: http(), 
+})
+
+const verifier = getContract({
+    address: verifierAddress,
+    abi: verifierABI,
+    client: { public: publicClient }
+})
 
 
 // We only provide account information in return to a signed request
@@ -31,6 +102,27 @@ const accountInformation = async signature => {
 
     // If we got here, the account is not found
     throw Error(`Address ${fromAddress} has no account`)
+}
+
+const uint8ArrayToHex = uint8Array =>
+  '0x' + Array.from(uint8Array).map(byte => byte.toString(16).padStart(2, '0')).join('')
+
+
+// Created using bb prove -b ./target/zkBank.json -w ./target/zkBank.gz -o ./proof/ --oracle_hash keccak --output_format bytes_and_fields
+
+
+// const pubFields = JSON.parse(await fs.readFile("./noir/proof/public_inputs_fields.json"))
+
+// const proof = "0x" + proofTemp.reduce((a,b) => a+b, "").replace(/0x/g, "")
+
+const generateProof = async (witness, fileID) => {
+    const fname = `witness-${fileID}.gz`
+    await fs.writeFile(fname, witness)
+    await execPromise(`bb prove -b ./noir/target/zkBank.json -w ${fname} -o ${fileID} --oracle_hash keccak --output_format fields`)
+    const proof = "0x" + JSON.parse(await fs.readFile(`./${fileID}/proof_fields.json`)).reduce((a,b) => a+b, "").replace(/0x/g, "")
+    await execPromise("rm -rf ${fname} ${fileID}")
+
+    return proof
 }
 
 
@@ -68,6 +160,20 @@ const processMessage = async (message, signature) => {
     } catch (err) {
         console.log(`Noir error: ${err}`)
         throw Error("Invalid transaction, not processed")
+    }
+
+    const publicFields = noirResult.returnValue.map(x=>'0x' + x.slice(2).padStart(64, "0"))
+    const proof = await generateProof(noirResult.witness, `${fromAddress}-${nonce}`)
+
+//    const { proof, publicInputs } = await honk.generateProof(noirResult.witness, { keccak: true })
+
+    try {
+        const verifierResult = 
+            await verifier.read.verify([
+                proof, publicFields])
+    } catch (err) {
+        console.log(`Verification error: ${err}`)
+        throw Error("Can't verify the transaction onchain")
     }
 
     let fromAccountNumber, toAccountNumber
@@ -117,14 +223,11 @@ let Accounts = [
 ]
 
 
-/* Uncomment here if it's useful for debugging
-
 const message = "send 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 500 finney (milliEth) 0                             "
 const signature = "0xb193b9bf521d3735cc60e3e9b5cac4e55fcc30d07f7153d3bc5372edc9dff0f15ef86ca26c4b8cb989ba1ec44fc7b155626fa2725d6b7261b691683cf9723e0d1b"
 
 processMessage(message, signature)
 
-*/
 
 const app = express()
 app.use(express.json())
