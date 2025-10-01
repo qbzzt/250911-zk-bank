@@ -1,6 +1,5 @@
 import fs from 'fs/promises'
 import { Noir } from '@noir-lang/noir_js'
-// import { UltraHonkBackend } from "@aztec/bb.js"
 import { exec } from 'child_process'
 import util from 'util'
 
@@ -13,6 +12,7 @@ import {
     getContract,
     http
 } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 import { anvil } from 'viem/chains'
 
 const execPromise = util.promisify(exec)
@@ -20,12 +20,14 @@ const execPromise = util.promisify(exec)
 const circuit = JSON.parse(await fs.readFile("./noir/target/zkBank.json"))
 const noir = new Noir(circuit)
 
-// I couldn't get this API to work, so I'm using the command line bb instead
-// const honk = new UltraHonkBackend(circuit.bytecode, { threads: 1 })
+// There is an @aztec/bb.js library we could use here. Howevevr,
+// the bb cli runs natively and is a lot faster. 
+// If you decide to use @aztec/bb.js, make sure you use version 0.87.9,
+// later versions don't work with the current Noir
 
 const port = 3000
 
-const zkBankAddress = "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
+const zkBankAddress = process.env.ZKBANK_ADDRESS || "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
 const zkBankABI = [
  {
     "type": "function",
@@ -92,15 +94,17 @@ const zkBankABI = [
   }    
 ]
 
+
 const walletClient = createWalletClient({ 
     chain: anvil, 
     transport: http(), 
+    account: privateKeyToAccount("0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6")
 })
 
 const zkBank = getContract({
     address: zkBankAddress,
     abi: zkBankABI,
-    client: { public: walletClient }
+    client: { wallet: walletClient }
 })
 
 
@@ -129,7 +133,7 @@ const generateProof = async (witness, fileID) => {
     await fs.writeFile(fname, witness)
     await execPromise(`bb prove -b ./noir/target/zkBank.json -w ${fname} -o ${fileID} --oracle_hash keccak --output_format fields`)
     const proof = "0x" + JSON.parse(await fs.readFile(`./${fileID}/proof_fields.json`)).reduce((a,b) => a+b, "").replace(/0x/g, "")
-    await execPromise("rm -rf ${fname} ${fileID}")
+    await execPromise(`rm -r ${fname} ${fileID}`)
 
     return proof
 }
@@ -177,7 +181,7 @@ const processMessage = async (message, signature) => {
 //    const { proof, publicInputs } = await honk.generateProof(noirResult.witness, { keccak: true })
 
     try { 
-        await zkBank.send.processTransaction([
+        await zkBank.write.processTransaction([
             proof, publicFields])
     } catch (err) {
         console.log(`Verification error: ${err}`)
