@@ -9,7 +9,7 @@ import {
     hashMessage,
     recoverAddress,
     recoverPublicKey,
-    createPublicClient,
+    createWalletClient,
     getContract,
     http
 } from 'viem'
@@ -25,32 +25,51 @@ const noir = new Noir(circuit)
 
 const port = 3000
 
-const verifierAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
-const verifierABI = [
-    {
-        "type": "function",
-        "name": "verify",
-        "inputs": [
-        {
-            "name": "proof",
-            "type": "bytes",
-            "internalType": "bytes"
-        },
-        {
-            "name": "publicInputs",
-            "type": "bytes32[]",
-            "internalType": "bytes32[]"
-        }
-        ],
-        "outputs": [
-        {
-            "name": "",
-            "type": "bool",
-            "internalType": "bool"
-        }
-        ],
-        "stateMutability": "view"
-    },
+const zkBankAddress = "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
+const zkBankABI = [
+ {
+    "type": "function",
+    "name": "processTransaction",
+    "inputs": [
+      {
+        "name": "_proof",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "_publicInputs",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "TransactionProcessed",
+    "inputs": [
+      {
+        "name": "transactionHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "oldStateHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "newStateHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
   {
     "type": "error",
     "name": "ProofLengthWrong",
@@ -73,15 +92,15 @@ const verifierABI = [
   }    
 ]
 
-const publicClient = createPublicClient({ 
+const walletClient = createWalletClient({ 
     chain: anvil, 
     transport: http(), 
 })
 
-const verifier = getContract({
-    address: verifierAddress,
-    abi: verifierABI,
-    client: { public: publicClient }
+const zkBank = getContract({
+    address: zkBankAddress,
+    abi: zkBankABI,
+    client: { public: walletClient }
 })
 
 
@@ -104,16 +123,6 @@ const accountInformation = async signature => {
     throw Error(`Address ${fromAddress} has no account`)
 }
 
-const uint8ArrayToHex = uint8Array =>
-  '0x' + Array.from(uint8Array).map(byte => byte.toString(16).padStart(2, '0')).join('')
-
-
-// Created using bb prove -b ./target/zkBank.json -w ./target/zkBank.gz -o ./proof/ --oracle_hash keccak --output_format bytes_and_fields
-
-
-// const pubFields = JSON.parse(await fs.readFile("./noir/proof/public_inputs_fields.json"))
-
-// const proof = "0x" + proofTemp.reduce((a,b) => a+b, "").replace(/0x/g, "")
 
 const generateProof = async (witness, fileID) => {
     const fname = `witness-${fileID}.gz`
@@ -167,10 +176,9 @@ const processMessage = async (message, signature) => {
 
 //    const { proof, publicInputs } = await honk.generateProof(noirResult.witness, { keccak: true })
 
-    try {
-        const verifierResult = 
-            await verifier.read.verify([
-                proof, publicFields])
+    try { 
+        await zkBank.send.processTransaction([
+            proof, publicFields])
     } catch (err) {
         console.log(`Verification error: ${err}`)
         throw Error("Can't verify the transaction onchain")
@@ -223,10 +231,12 @@ let Accounts = [
 ]
 
 
+/*
 const message = "send 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 500 finney (milliEth) 0                             "
 const signature = "0xb193b9bf521d3735cc60e3e9b5cac4e55fcc30d07f7153d3bc5372edc9dff0f15ef86ca26c4b8cb989ba1ec44fc7b155626fa2725d6b7261b691683cf9723e0d1b"
 
 processMessage(message, signature)
+*/
 
 
 const app = express()
