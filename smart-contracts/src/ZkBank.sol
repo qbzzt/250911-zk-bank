@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright 2022 Aztec
 
 pragma solidity >=0.8.21;
 
 import {HonkVerifier} from "./Verifier.sol";
 
 contract ZkBank {
-    HonkVerifier myVerifier;
+    HonkVerifier immutable myVerifier;
     bytes32 currentStateHash;
 
     event TransactionProcessed(
@@ -22,19 +21,19 @@ contract ZkBank {
 
     function processTransaction(
         bytes calldata _proof, 
-        bytes32[] calldata _publicInputs
+        bytes32[] calldata _publicFields
     ) public {
-        require(_publicInputs[0] == currentStateHash, 
+        require(_publicFields[0] == currentStateHash, 
             "Wrong old state hash");
 
-        myVerifier.verify(_proof, _publicInputs);
+        myVerifier.verify(_proof, _publicFields);
 
-        currentStateHash = _publicInputs[1];
+        currentStateHash = _publicFields[1];
 
         emit TransactionProcessed(
-            _publicInputs[2]<<128 | _publicInputs[3],
-            _publicInputs[0],
-            _publicInputs[1]
+            _publicFields[2]<<128 | _publicFields[3],
+            _publicFields[0],
+            _publicFields[1]
         );
     }
 }
